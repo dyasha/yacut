@@ -1,24 +1,13 @@
-import random
-import string
+
+
+from http import HTTPStatus
 
 from flask import abort, flash, redirect, render_template
 
 from . import app, db
 from .forms import URLForm
 from .models import URLMap
-
-MAX_TRIES = 10
-SHORT_ID_LENGTH = 6
-
-
-def get_unique_short_id():
-    chars = string.ascii_letters + string.digits
-    for _ in range(MAX_TRIES):
-        random_url = ''.join(
-            random.choice(chars) for _ in range(SHORT_ID_LENGTH))
-    if not URLMap.query.filter_by(short=random_url).first():
-        return random_url
-    abort(500)
+from .utils import get_unique_short_id
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -27,11 +16,11 @@ def index_view():
     if form.validate_on_submit():
         custom_id = form.custom_id.data
         original_link = form.original_link.data
-        url = URLMap.query.filter_by(original=original_link).first()
+        url = URLMap.get_by_short_id_or_original(original_link)
         if url and custom_id == '':
             url.short = get_unique_short_id()
         elif custom_id != '' and custom_id is not None:
-            if URLMap.query.filter_by(short=custom_id).first():
+            if URLMap.get_by_short_id_or_original(custom_id):
                 flash(f'Имя {custom_id} уже занято!', '')
                 return render_template('yacut.html', form=form)
             if url:
@@ -56,5 +45,7 @@ def index_view():
 
 @app.route('/<string:short>')
 def redirect_view(short):
-    url = URLMap.query.filter_by(short=short).first_or_404()
-    return redirect(url.original)
+    url = URLMap.get_by_short_id_or_original(short)
+    if url:
+        return redirect(url.original)
+    abort(HTTPStatus.NOT_FOUND.value)

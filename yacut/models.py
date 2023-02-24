@@ -14,3 +14,20 @@ class URLMap(db.Model):
             url=self.original,
             custom_id=self.short,
         )
+
+    @staticmethod
+    def add(url):
+        db.session.add(url)
+
+    @staticmethod
+    def commit():
+        db.session.commit()
+
+    @staticmethod
+    def get_by_short_id_or_original(short_id=None, original=None):
+        if short_id:
+            return URLMap.query.filter_by(short=short_id).first()
+        elif original:
+            return URLMap.query.filter_by(original=original).first()
+        else:
+            raise ValueError('Не указан short_id или original')

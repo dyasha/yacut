@@ -1,37 +1,39 @@
+import re
+from http import HTTPStatus
+
 from flask import jsonify, request
 
-from . import app, db
+from . import app
 from .error_handlers import InvalidAPIUsage
 from .models import URLMap
-from .validators import is_valid_short_id, is_valid_short_id_len
-from .views import get_unique_short_id
+from .utils import get_unique_short_id
 
 
 @app.route('/api/id/<string:short_id>/', methods=['GET'])
 def get_short(short_id):
-    url_map = URLMap.query.filter_by(short=short_id).first()
+    url_map = URLMap.get_by_short_id_or_original(short_id)
     if url_map:
-        return jsonify({'url': url_map.to_dict()['url']}), 200
-    raise InvalidAPIUsage('Указанный id не найден', 404)
+        return jsonify({'url': url_map.to_dict()['url']}), HTTPStatus.OK.value
+    raise InvalidAPIUsage('Указанный id не найден', HTTPStatus.NOT_FOUND.value)
 
 
 @app.route('/api/id/', methods=['POST'])
 def create_short_id():
+    pattern = r'^[a-zA-Z0-9_]{1,16}$'
     data = request.get_json()
     if data:
         if 'url' not in data:
             raise InvalidAPIUsage('"url" является обязательным полем!')
-        url = URLMap.query.filter_by(original=data['url']).first()
+        url = URLMap.get_by_short_id_or_original(data['url'])
         if url and 'custom_id' not in data:
             url.short = get_unique_short_id()
         elif ('custom_id' in data and
               data['custom_id'] != '' and
               data['custom_id'] is not None):
-            if (not is_valid_short_id(data['custom_id']) or
-                    not is_valid_short_id_len(data['custom_id'])):
+            if not re.match(pattern, data['custom_id']):
                 raise InvalidAPIUsage('Указано недопустимое имя для '
                                       'короткой ссылки')
-            if URLMap.query.filter_by(short=data['custom_id']).first():
+            if URLMap.get_by_short_id_or_original(data['custom_id']):
                 error = data['custom_id']
                 raise InvalidAPIUsage(f'Имя "{error}" уже занято.')
             if url:
@@ -41,16 +43,16 @@ def create_short_id():
                     original=data['url'],
                     short=data['custom_id']
                 )
-                db.session.add(url)
+                URLMap.add(url)
         else:
             url = URLMap(
                 original=data['url'],
                 short=get_unique_short_id()
             )
-            db.session.add(url)
-        db.session.commit()
+            URLMap.add(url)
+        URLMap.commit()
         return jsonify({
             'url': url.to_dict()['url'],
             'short_link': f"{request.host_url}{url.to_dict()['custom_id']}"
-        }), 201
+        }), HTTPStatus.CREATED.value
     raise InvalidAPIUsage('Отсутствует тело запроса')
