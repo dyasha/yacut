@@ -10,3 +10,5 @@ class Config(object):
 ONE_DIGIT = 1
 SIXTEEN_DIGIT = 16
 TWO_HUND_FIFTY_SIX_DIGIT = 256
+
+PATTERN = r'^[a-zA-Z0-9_]{' + str(ONE_DIGIT) + ',' + str(SIXTEEN_DIGIT) + '}$'

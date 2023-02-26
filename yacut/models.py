@@ -1,6 +1,11 @@
+import re
 from datetime import datetime
 
+from settings import PATTERN
 from yacut import db
+
+from .error_handlers import InvalidAPIUsage
+from .utils import get_unique_short_id
 
 
 class URLMap(db.Model):
@@ -29,5 +34,36 @@ class URLMap(db.Model):
             return URLMap.query.filter_by(short=short_id).first()
         elif original:
             return URLMap.query.filter_by(original=original).first()
+
+    @staticmethod
+    def create(data):
+        if 'url' not in data:
+            raise InvalidAPIUsage('"url" является обязательным полем!')
+        url = URLMap.get_by_short_id_or_original(data['url'])
+        if url and 'custom_id' not in data:
+            url.short = get_unique_short_id()
+        elif ('custom_id' in data and
+              data['custom_id'] != '' and
+              data['custom_id'] is not None):
+            if not re.match(PATTERN, data['custom_id']):
+                raise InvalidAPIUsage('Указано недопустимое имя для '
+                                      'короткой ссылки')
+            if URLMap.get_by_short_id_or_original(data['custom_id']):
+                error = data['custom_id']
+                raise InvalidAPIUsage(f'Имя "{error}" уже занято.')
+            if url:
+                url.short = data['custom_id']
+            else:
+                url = URLMap(
+                    original=data['url'],
+                    short=data['custom_id']
+                )
+                URLMap.add(url)
         else:
-            raise ValueError('Не указан short_id или original')
+            url = URLMap(
+                original=data['url'],
+                short=get_unique_short_id()
+            )
+            URLMap.add(url)
+        URLMap.commit()
+        return url
