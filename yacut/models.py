@@ -34,6 +34,7 @@ class URLMap(db.Model):
             return URLMap.query.filter_by(short=short_id).first()
         elif original:
             return URLMap.query.filter_by(original=original).first()
+        raise ValueError('Не указан short_id или original') 
 
     @staticmethod
     def create(data):
